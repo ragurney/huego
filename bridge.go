@@ -2,42 +2,32 @@ package huego
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"path"
 	"strconv"
-	"strings"
 )
+
+// BaseURL is the base url for the remote api
+const BaseURL = "https://api.meethue.com"
 
 // Bridge exposes a hardware bridge through a struct.
 type Bridge struct {
-	Host string `json:"internalipaddress,omitempty"`
-	User string
-	ID   string `json:"id,omitempty"`
+	Token string // access token from hue remote auth
+	User  string
+	ID    string `json:"id,omitempty"`
 }
 
 func (b *Bridge) getAPIPath(str ...string) (string, error) {
-
-	if strings.Index(strings.ToLower(b.Host), "http://") <= -1 && strings.Index(strings.ToLower(b.Host), "https://") <= -1 {
-		b.Host = fmt.Sprintf("%s%s", "http://", b.Host)
-	}
-
-	u, err := url.Parse(b.Host)
+	u, err := url.Parse(BaseURL)
 	if err != nil {
 		return "", err
 	}
 
-	u.Path = path.Join(u.Path, "/api/", b.User)
+	u.Path = path.Join(u.Path, "/bridge/", b.User)
 	for _, p := range str {
 		u.Path = path.Join(u.Path, p)
 	}
 	return u.String(), nil
-}
-
-// Login calls New() and passes Host on this Bridge instance.
-func (b *Bridge) Login(u string) *Bridge {
-	b.User = u
-	return New(b.Host, u)
 }
 
 /*
@@ -56,7 +46,7 @@ func (b *Bridge) GetConfig() (*Config, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -78,28 +68,45 @@ func (b *Bridge) GetConfig() (*Config, error) {
 
 }
 
-// CreateUser creates a user by adding n to the list of whitelists in the bridge.
-// The link button on the bridge must have been pressed before calling CreateUser.
-func (b *Bridge) CreateUser(n string) (string, error) {
+// Login creates a user using the token of the bot
+func (b *Bridge) Login(n string) (string, error) {
 
 	var a []*APIResponse
 
-	body := struct {
-		DeviceType        string `json:"devicetype,omitempty"`
-		GenerateClientKey bool   `json:"generateclientkey,omitempty"`
-	}{n, true}
+	linkButtonBody := struct {
+		LinkButton bool `json:"linkbutton,omitempty"`
+	}{true}
 
-	url, err := b.getAPIPath("/")
+	linkButtonURL, err := b.getAPIPath("/0/config")
 	if err != nil {
 		return "", err
 	}
 
-	data, err := json.Marshal(&body)
+	data, err := json.Marshal(&linkButtonBody)
 	if err != nil {
 		return "", err
 	}
 
-	res, err := post(url, data)
+	_, err = put(linkButtonURL, data, b.Token) // TODO check res
+	if err != nil {
+		return "", err
+	}
+
+	createUserBody := struct {
+		DeviceType string `json:"devicetype,omitempty"`
+	}{n}
+
+	createUserURL, err := b.getAPIPath("/")
+	if err != nil {
+		return "", err
+	}
+
+	data, err = json.Marshal(&createUserBody)
+	if err != nil {
+		return "", err
+	}
+
+	res, err := post(createUserURL, data, b.Token)
 	if err != nil {
 		return "", err
 	}
@@ -114,8 +121,9 @@ func (b *Bridge) CreateUser(n string) (string, error) {
 		return "", err
 	}
 
-	return resp.Success["username"].(string), nil
+	b.User = resp.Success["username"].(string)
 
+	return b.User, nil
 }
 
 // GetUsers returns a list of whitelists from the bridge
@@ -142,7 +150,7 @@ func (b *Bridge) UpdateConfig(c *Config) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +178,7 @@ func (b *Bridge) DeleteUser(n string) error {
 		return err
 	}
 
-	res, err := delete(url)
+	res, err := delete(url, b.Token)
 	if err != nil {
 		return err
 	}
@@ -196,7 +204,7 @@ func (b *Bridge) GetFullState() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +233,7 @@ func (b *Bridge) GetGroups() ([]Group, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +270,7 @@ func (b *Bridge) GetGroup(i int) (*Group, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +301,7 @@ func (b *Bridge) SetGroupState(i int, l State) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +335,7 @@ func (b *Bridge) UpdateGroup(i int, l Group) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +368,7 @@ func (b *Bridge) CreateGroup(g Group) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := post(url, data)
+	res, err := post(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -389,7 +397,7 @@ func (b *Bridge) DeleteGroup(i int) error {
 		return err
 	}
 
-	res, err := delete(url)
+	res, err := delete(url, b.Token)
 	if err != nil {
 		return err
 	}
@@ -420,7 +428,7 @@ func (b *Bridge) GetLights() ([]Light, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +465,7 @@ func (b *Bridge) GetLight(i int) (*Light, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return light, err
 	}
@@ -489,7 +497,7 @@ func (b *Bridge) SetLightState(i int, l State) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -519,7 +527,7 @@ func (b *Bridge) FindLights() (*Response, error) {
 		return nil, err
 	}
 
-	res, err := post(url, nil)
+	res, err := post(url, nil, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -548,7 +556,7 @@ func (b *Bridge) GetNewLights() (*NewLight, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -586,7 +594,7 @@ func (b *Bridge) DeleteLight(i int) error {
 		return err
 	}
 
-	res, err := delete(url)
+	res, err := delete(url, b.Token)
 	if err != nil {
 		return err
 	}
@@ -618,7 +626,7 @@ func (b *Bridge) UpdateLight(i int, light Light) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -652,7 +660,7 @@ func (b *Bridge) GetResourcelinks() ([]*Resourcelink, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -688,7 +696,7 @@ func (b *Bridge) GetResourcelink(i int) (*Resourcelink, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -717,7 +725,7 @@ func (b *Bridge) CreateResourcelink(s *Resourcelink) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := post(url, data)
+	res, err := post(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -750,7 +758,7 @@ func (b *Bridge) UpdateResourcelink(i int, resourcelink *Resourcelink) (*Respons
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -779,7 +787,7 @@ func (b *Bridge) DeleteResourcelink(i int) error {
 		return err
 	}
 
-	res, err := delete(url)
+	res, err := delete(url, b.Token)
 	if err != nil {
 		return err
 	}
@@ -810,7 +818,7 @@ func (b *Bridge) GetRules() ([]*Rule, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -846,7 +854,7 @@ func (b *Bridge) GetRule(i int) (*Rule, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -875,7 +883,7 @@ func (b *Bridge) CreateRule(s *Rule) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := post(url, data)
+	res, err := post(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -909,7 +917,7 @@ func (b *Bridge) UpdateRule(i int, rule *Rule) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -938,7 +946,7 @@ func (b *Bridge) DeleteRule(i int) error {
 		return err
 	}
 
-	res, err := delete(url)
+	res, err := delete(url, b.Token)
 	if err != nil {
 		return err
 	}
@@ -969,7 +977,7 @@ func (b *Bridge) GetScenes() ([]Scene, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1000,7 +1008,7 @@ func (b *Bridge) GetScene(i string) (*Scene, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1035,7 +1043,7 @@ func (b *Bridge) UpdateScene(id string, s *Scene) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1070,7 +1078,7 @@ func (b *Bridge) SetSceneLightState(id string, iid int, l *State) (*Response, er
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1106,7 +1114,7 @@ func (b *Bridge) RecallScene(id string, gid int) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1139,7 +1147,7 @@ func (b *Bridge) CreateScene(s *Scene) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := post(url, data)
+	res, err := post(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1167,7 +1175,7 @@ func (b *Bridge) DeleteScene(id string) error {
 		return err
 	}
 
-	res, err := delete(url)
+	res, err := delete(url, b.Token)
 	if err != nil {
 		return err
 	}
@@ -1198,7 +1206,7 @@ func (b *Bridge) GetSchedules() ([]*Schedule, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1234,7 +1242,7 @@ func (b *Bridge) GetSchedule(i int) (*Schedule, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1263,7 +1271,7 @@ func (b *Bridge) CreateSchedule(s *Schedule) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := post(url, data)
+	res, err := post(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1297,7 +1305,7 @@ func (b *Bridge) UpdateSchedule(i int, schedule *Schedule) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1326,7 +1334,7 @@ func (b *Bridge) DeleteSchedule(i int) error {
 		return err
 	}
 
-	res, err := delete(url)
+	res, err := delete(url, b.Token)
 	if err != nil {
 		return err
 	}
@@ -1357,7 +1365,7 @@ func (b *Bridge) GetSensors() ([]Sensor, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1392,7 +1400,7 @@ func (b *Bridge) GetSensor(i int) (*Sensor, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return r, err
 	}
@@ -1421,7 +1429,7 @@ func (b *Bridge) CreateSensor(s *Sensor) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := post(url, data)
+	res, err := post(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1451,7 +1459,7 @@ func (b *Bridge) FindSensors() (*Response, error) {
 		return nil, err
 	}
 
-	res, err := post(url, nil)
+	res, err := post(url, nil, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1481,7 +1489,7 @@ func (b *Bridge) GetNewSensors() (*NewSensor, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1526,7 +1534,7 @@ func (b *Bridge) UpdateSensor(i int, sensor *Sensor) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1555,7 +1563,7 @@ func (b *Bridge) DeleteSensor(i int) error {
 		return err
 	}
 
-	res, err := delete(url)
+	res, err := delete(url, b.Token)
 	if err != nil {
 		return err
 	}
@@ -1584,7 +1592,7 @@ func (b *Bridge) UpdateSensorConfig(i int, c interface{}) (*Response, error) {
 		return nil, err
 	}
 
-	res, err := put(url, data)
+	res, err := put(url, data, b.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -1618,7 +1626,7 @@ func (b *Bridge) GetCapabilities() (*Capabilities, error) {
 		return nil, err
 	}
 
-	res, err := get(url)
+	res, err := get(url, b.Token)
 	if err != nil {
 		return nil, err
 	}

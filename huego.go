@@ -79,12 +79,14 @@ func unmarshal(data []byte, v interface{}) error {
 	return nil
 }
 
-func get(url string) ([]byte, error) {
+func get(url string, token string) ([]byte, error) {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	client := http.Client{}
 	res, err := client.Do(req)
@@ -103,7 +105,7 @@ func get(url string) ([]byte, error) {
 	return body, nil
 }
 
-func put(url string, data []byte) ([]byte, error) {
+func put(url string, data []byte, token string) ([]byte, error) {
 
 	body := strings.NewReader(string(data))
 
@@ -113,6 +115,7 @@ func put(url string, data []byte) ([]byte, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	client := http.Client{}
 	res, err := client.Do(req)
@@ -131,7 +134,7 @@ func put(url string, data []byte) ([]byte, error) {
 
 }
 
-func post(url string, data []byte) ([]byte, error) {
+func post(url string, data []byte, token string) ([]byte, error) {
 
 	body := strings.NewReader(string(data))
 
@@ -141,6 +144,7 @@ func post(url string, data []byte) ([]byte, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	client := http.Client{}
 	res, err := client.Do(req)
@@ -159,7 +163,7 @@ func post(url string, data []byte) ([]byte, error) {
 
 }
 
-func delete(url string) ([]byte, error) {
+func delete(url string, token string) ([]byte, error) {
 
 	req, err := http.NewRequest("DELETE", url, nil)
 	if err != nil {
@@ -167,6 +171,7 @@ func delete(url string) ([]byte, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	client := http.Client{}
 	res, err := client.Do(req)
@@ -185,7 +190,7 @@ func delete(url string) ([]byte, error) {
 
 }
 
-// DiscoverAll performs a discovery on the network looking for bridges using https://www.meethue.com/api/nupnp service.
+// DiscoverAll performs a discovery on the network looking for bridges using https://www.meethue.com/bridge/nupnp service.
 // DiscoverAll returns a list of Bridge objects.
 func DiscoverAll() ([]Bridge, error) {
 
@@ -218,7 +223,7 @@ func DiscoverAll() ([]Bridge, error) {
 
 }
 
-// Discover performs a discovery on the network looking for bridges using https://www.meethue.com/api/nupnp service.
+// Discover performs a discovery on the network looking for bridges using https://www.meethue.com/bridge/nupnp service.
 // Discover uses DiscoverAll() but only returns the first instance in the array of bridges if any.
 func Discover() (*Bridge, error) {
 
@@ -237,9 +242,8 @@ func Discover() (*Bridge, error) {
 
 }
 
-// New instantiates and returns a new Bridge. New accepts hostname/ip address to the bridge (h) as well as an username (u).
-// h may or may not be prefixed with http(s)://. For example http://192.168.1.20/ or 192.168.1.20.
-// u is a username known to the bridge. Use Discover() and CreateUser() to create a user.
-func New(h, u string) *Bridge {
-	return &Bridge{h, u, ""}
+// New - calll huego.New(token) then bridge.Login(deviceName)
+func New(t string) *Bridge {
+
+	return &Bridge{Token: t, User: "", ID: ""}
 }

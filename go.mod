@@ -1,5 +1,3 @@
-module github.com/amimof/huego
+module github.com/ragurney/huego
 
-go 1.12
-
-require github.com/jarcoal/httpmock v1.0.4
+go 1.13

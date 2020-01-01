@@ -15,17 +15,17 @@ type Light struct {
 	bridge           *Bridge
 }
 
-// State defines the attributes and properties of a light
+// State defines the attributes and properties of a lights
 type State struct {
-	On             bool      `json:"on"`
-	Bri            uint8     `json:"bri,omitempty"`
+	On             bool      `json:"on,omitempty"`
+	Bri            uint8     `json:"bri"`
 	Hue            uint16    `json:"hue,omitempty"`
-	Sat            uint8     `json:"sat,omitempty"`
+	Sat            uint8     `json:"sat"`
 	Xy             []float32 `json:"xy,omitempty"`
 	Ct             uint16    `json:"ct,omitempty"`
 	Alert          string    `json:"alert,omitempty"`
 	Effect         string    `json:"effect,omitempty"`
-	TransitionTime uint16    `json:"transitiontime,omitempty"`
+	TransitionTime uint16    `json:"transitiontime"`
 	BriInc         int       `json:"bri_inc,omitempty"`
 	SatInc         int       `json:"sat_inc,omitempty"`
 	HueInc         int       `json:"hue_inc,omitempty"`
